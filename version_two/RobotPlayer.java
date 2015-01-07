@@ -1,4 +1,4 @@
-package version_one;
+package version_two;
 
 import battlecode.common.*;
 import java.util.*;
