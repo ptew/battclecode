@@ -1,6 +1,6 @@
 package examplefuncsplayer;
 
-import battlecode.common.*;test
+import battlecode.common.*;
 import java.util.*;
 
 public class RobotPlayer {

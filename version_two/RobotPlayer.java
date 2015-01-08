@@ -1,6 +1,7 @@
 package version_two;
 
 import battlecode.common.*;
+
 import java.util.*;
 
 public class RobotPlayer {
@@ -21,6 +22,9 @@ public class RobotPlayer {
 	static Direction[] directions = { Direction.NORTH, Direction.NORTH_EAST,
 			Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH,
 			Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST };
+	static MapLocation[] enemy_towers;
+	static List<MapLocation> attack_sequence = new ArrayList<MapLocation>();
+	
 
 	public static void run(RobotController controller) {
 		rc = controller;
@@ -30,19 +34,36 @@ public class RobotPlayer {
 		my_team = rc.getTeam();
 		enemy_team = my_team.opponent();
 		facing = get_random_direction();// randomize starting direction
-
-		// UNUSED:
-		// MapLocation enemy_loc = rc.senseEnemyHQLocation();
-		// Direction last_direction = null;
-
+		BaseBot bot;
 		// DEBUG:
 		// set_robot_string(rc);
 
-		BaseBot bot;
-
 		switch (rc.getType()) {
 		case HQ:
-			bot = new HQ(rc);
+			enemy_towers = rc.senseEnemyTowerLocations();
+			bot = new HQ(rc,enemy_towers.length);
+			List<MapLocation> enemy_locations = new ArrayList<MapLocation>();
+			for (MapLocation t: enemy_towers) {
+				enemy_locations.add(t);
+			}
+			enemy_locations.add(bot.theirHQ);
+			
+			MapLocation last_location = bot.myHQ;
+			int shortest_distance = Integer.MAX_VALUE;
+			MapLocation closest = enemy_locations.get(0);
+			while(enemy_locations.isEmpty() != true) {
+				for(MapLocation loc: enemy_locations) {
+					int new_distance = last_location.distanceSquaredTo(loc);
+					if(new_distance < shortest_distance) {
+						shortest_distance = new_distance;
+						closest = loc;
+					}
+				}
+				last_location=closest;
+				attack_sequence.add(closest);
+				enemy_locations.remove(closest);
+				shortest_distance = Integer.MAX_VALUE;
+			}
 			break;
 		case TOWER:
 			bot = new Tower(rc);
@@ -85,8 +106,9 @@ public class RobotPlayer {
 		protected MapLocation myHQ, theirHQ;
 		protected Team myTeam, theirTeam;
 
-		public BaseBot(RobotController rc) {
+		public BaseBot(RobotController rc) {			
 			this.rc = rc;
+			//TODO: Have the HQ do this and broadcast it			
 			this.myHQ = rc.senseHQLocation();
 			this.theirHQ = rc.senseEnemyHQLocation();
 			this.myTeam = rc.getTeam();
@@ -96,6 +118,7 @@ public class RobotPlayer {
 		/*
 		 * 
 		 * BASEBOT HELPER FUNCTIONS
+		 * 
 		 */
 		public Direction[] getDirectionsToward(MapLocation dest) {
 			Direction toDest = rc.getLocation().directionTo(dest);
@@ -191,8 +214,13 @@ public class RobotPlayer {
 	 * HQ LOGIC
 	 */
 	public static class HQ extends BaseBot {
-		public HQ(RobotController rc) {
+		private int attack_counter;
+		private int number_of_enemy_towers;
+		
+		public HQ(RobotController rc, int num_of_towers) {
 			super(rc);
+			this.attack_counter = 0;
+			this.number_of_enemy_towers = num_of_towers;
 		}
 
 		public void execute() throws GameActionException {
@@ -221,9 +249,15 @@ public class RobotPlayer {
 //			}
 //			rc.broadcast(X_RALLY_CHANNEL, rallyPoint.x);
 //			rc.broadcast(Y_RALLY_CHANNEL, rallyPoint.y);
-			MapLocation closest_tower = closest_enemy_tower();
-			rc.broadcast(X_CLOSEST_TOWER_CHANNEL, closest_tower.x);
-			rc.broadcast(Y_CLOSEST_TOWER_CHANNEL, closest_tower.y);
+//			MapLocation closest_tower = closest_enemy_tower();
+			int current_num_of_towers = rc.senseEnemyTowerLocations().length;
+			if (current_num_of_towers < this.number_of_enemy_towers) {
+				this.attack_counter += 1;
+				this.number_of_enemy_towers = current_num_of_towers;
+			}
+			
+			rc.broadcast(X_CLOSEST_TOWER_CHANNEL, attack_sequence.get(this.attack_counter).x);
+			rc.broadcast(Y_CLOSEST_TOWER_CHANNEL, attack_sequence.get(this.attack_counter).y);
 			
 			RobotInfo[] rallied_troops = rc.senseNearbyRobots(rallyPoint, 30,this.myTeam);
 			if (rallied_troops.length > 70) {
