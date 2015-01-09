@@ -114,7 +114,7 @@ public class RobotPlayer {
 		protected RobotController rc;
 		protected MapLocation myHQ, theirHQ;
 		protected Team myTeam, theirTeam;
-		protected List<Direction> direction_path;
+		protected Queue<MapLocation> path;
 
 		public BaseBot(RobotController rc) {
 			this.rc = rc;
@@ -123,7 +123,7 @@ public class RobotPlayer {
 			this.theirHQ = rc.senseEnemyHQLocation();
 			this.myTeam = rc.getTeam();
 			this.theirTeam = this.myTeam.opponent();
-			this.direction_path = null;
+			this.path = null;
 		}
 
 		/*
@@ -149,39 +149,43 @@ public class RobotPlayer {
 			return null;
 		}
 
-		public void move_to_location(BaseBot bot, MapLocation loc)
+		public Queue<MapLocation> move_to_location(BaseBot bot, MapLocation loc)
 				throws GameActionException {
-//			Direction dir = facing;
-//			if (rand.nextDouble() < 0.2) {
-//				dir = get_random_direction();
-//			} else {
-//				dir = getMoveDir(loc);
+			Direction dir = facing;
+			if (rand.nextDouble() < 0.2) {
+				dir = get_random_direction();
+			} else {
+				dir = getMoveDir(loc);
+			}
+
+			if (dir == null) {
+				dir = facing;
+			}
+
+			MapLocation tileInFront = rc.getLocation().add(dir);
+
+			// check that we are not facing off the edge of the map
+			if (rc.senseTerrainTile(tileInFront) != TerrainTile.NORMAL) {
+				dir = dir.rotateLeft();
+			} else {
+				// try to move in the facing direction
+				if (rc.isCoreReady() && rc.canMove(dir)) {
+					rc.move(dir);
+				}
+			}
+			
+			 
+//			if (bot.path == null || bot.path.isEmpty()){
+//				bot.path = a_star_search(rc.getLocation(), loc, Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y - bot.theirHQ.y)));
 //			}
-//
-//			if (dir == null) {
-//				dir = facing;
-//			}
-//
-//			MapLocation tileInFront = rc.getLocation().add(dir);
-//
-//			// check that we are not facing off the edge of the map
-//			if (rc.senseTerrainTile(tileInFront) != TerrainTile.NORMAL) {
-//				dir = dir.rotateLeft();
-//			} else {
-//				// try to move in the facing direction
+//			if(!bot.path.isEmpty()){
+//				Direction dir = getMoveDir(bot.path.element());
 //				if (rc.isCoreReady() && rc.canMove(dir)) {
+//					bot.path.remove();
 //					rc.move(dir);
 //				}
 //			}
-			
-			 
-			if (bot.direction_path.isEmpty()){
-				bot.direction_path = a_star_search(rc.getLocation(), loc, Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y - bot.theirHQ.y)));
-			}
-			Direction dir = bot.direction_path.remove(0);
-			if (rc.isCoreReady() && rc.canMove(dir)) {
-				rc.move(dir);
-			}
+			return bot.path;
 		}
 
 		public Direction get_spawn_direction(RobotType type) {
@@ -395,7 +399,7 @@ public class RobotPlayer {
 				if (rc.isCoreReady()) {
 					int id = rc.getID();
 					MapLocation rallyPoint = get_rally_point(this, id);
-					move_to_location(this, rallyPoint);
+					this.path = move_to_location(this, rallyPoint);
 				}
 			} catch (Exception e) {
 				System.out.println("Basher Exception");
@@ -426,7 +430,7 @@ public class RobotPlayer {
 			} else if (rc.isCoreReady()) {
 				int id = rc.getID();
 				MapLocation rallyPoint = get_rally_point(this, id);
-				move_to_location(this, rallyPoint);
+				this.path = move_to_location(this, rallyPoint);
 			}
 			rc.yield();
 		}
@@ -526,7 +530,7 @@ public class RobotPlayer {
 			} else if (rc.isCoreReady()) {
 				int id = rc.getID();
 				MapLocation rallyPoint = get_rally_point(this, id);
-				move_to_location(this, rallyPoint);
+				this.path = move_to_location(this, rallyPoint);
 			}
 			rc.yield();
 		}
@@ -728,13 +732,13 @@ public class RobotPlayer {
 	}
 
 	private static MapLocation generate_rally_point(HQ bot) {
-		return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
-				(bot.myHQ.y + bot.theirHQ.y) / 2);
-		// return new MapLocation(
-		// (int) (0.25 * bot.myHQ.x + 0.75 * attack_sequence
-		// .get(bot.attack_counter).x),
-		// (int) (0.25 * bot.myHQ.y + 0.75 * attack_sequence
-		// .get(bot.attack_counter).y));
+//		return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
+//				(bot.myHQ.y + bot.theirHQ.y) / 2);
+		 return new MapLocation(
+		 (int) (0.75 * bot.myHQ.x + 0.25 * attack_sequence
+		 .get(bot.attack_counter).x),
+		 (int) (0.75 * bot.myHQ.y + 0.25 * attack_sequence
+		 .get(bot.attack_counter).y));
 	}
 
 	private static boolean low_attack_density(BaseBot bot) {
@@ -786,7 +790,7 @@ public class RobotPlayer {
 		return neighbors;
 	}
 
-	static private List<Direction> a_star_search(
+	static private Queue<MapLocation> a_star_search(
 			MapLocation start, MapLocation finish, int max_nodes) {
 		PriorityQueue<Tuple<MapLocation, Integer>> frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
 				max_nodes, new Comparator<Tuple<MapLocation, Integer>>() {
@@ -805,8 +809,8 @@ public class RobotPlayer {
 				});
 
 		frontier.add(new Tuple<MapLocation, Integer>(start, 0));
-		List<Direction> direction_path = new ArrayList<Direction>();
-		Map<MapLocation, Integer> cost_so_far = new HashMap<MapLocation, Integer>();
+		Queue<MapLocation> path = new LinkedList<MapLocation>();
+		Map<MapLocation, Integer> cost_so_far = new Hashtable<MapLocation, Integer>();
 		cost_so_far.put(start, 0);
 
 		MapLocation current;
@@ -828,14 +832,15 @@ public class RobotPlayer {
 					cost_so_far.put(next, new_cost);
 					priority = new_cost + manhattan_distance(next, finish);
 					frontier.add(new Tuple<MapLocation, Integer>(next, priority));
-					direction_path.add(directions[i]);
+//					direction_path.add(directions[i]);
+					path.add(next);
 				}
 
 			}
 
 		}
 
-		return direction_path;
+		return path;
 	}
 }
 
