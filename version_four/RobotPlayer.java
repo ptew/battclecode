@@ -1,9 +1,22 @@
-package version_two;
+package version_four;
 
 import battlecode.common.*;
 
 import java.util.*;
+import java.lang.Math;
 
+/*
+ * Ideas:
+ * 	-better moving
+ * 	-sensing ore
+ *  -building out other robots
+ *  -timing waves
+ *  -sensing land obstacles
+ *  -sending troop packs to different sides of the base
+ *  -detecting for hole in defense to get to the hq
+ * 
+ * 
+ */
 public class RobotPlayer {
 	// Static Variables for the Match
 	static RobotController rc;
@@ -17,6 +30,10 @@ public class RobotPlayer {
 	static int NUM_BEAVERS_CHANNEL = 2;
 	static int NUM_ATTACKERS_CHANNEL = 3;
 	static int NUM_SOLDIERS_CHANNEL = 4;
+	static int NUM_BARRACKS_CHANNEL = 5;
+	static int NUM_MINERFACTORY_CHANNEL = 6;
+	static int NUM_MINERS_CHANNEL = 7;
+	static int NUM_TANKFACTORY_CHANNEL = 8;
 	static int X_CLOSEST_TOWER_CHANNEL = 10;
 	static int Y_CLOSEST_TOWER_CHANNEL = 11;
 	static Direction[] directions = { Direction.NORTH, Direction.NORTH_EAST,
@@ -24,6 +41,14 @@ public class RobotPlayer {
 			Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST };
 	static MapLocation[] enemy_towers;
 	static List<MapLocation> attack_sequence = new ArrayList<MapLocation>();
+
+	// LOGIC CONSTANTS
+	static int MINERFACTORY_LIMIT = 1;
+	static int BARRACKS_LIMIT = 4;
+	static int MINER_LIMIT = 12;
+	static int BEAVER_LIMIT = 10;
+	static int TANKFACTORY_LIMIT = 3;
+	static int FINAL_PUSH_ROUND = 1700;
 
 	public static void run(RobotController controller) {
 		rc = controller;
@@ -64,6 +89,12 @@ public class RobotPlayer {
 		case MINERFACTORY:
 			bot = new MinerFactory(rc);
 			break;
+		case TANK:
+			bot = new Tank(rc);
+			break;
+		case TANKFACTORY:
+			bot = new TankFactory(rc);
+			break;
 		default:
 			bot = new BaseBot(rc);
 			break;
@@ -83,6 +114,7 @@ public class RobotPlayer {
 		protected RobotController rc;
 		protected MapLocation myHQ, theirHQ;
 		protected Team myTeam, theirTeam;
+		protected List<Direction> direction_path;
 
 		public BaseBot(RobotController rc) {
 			this.rc = rc;
@@ -91,6 +123,7 @@ public class RobotPlayer {
 			this.theirHQ = rc.senseEnemyHQLocation();
 			this.myTeam = rc.getTeam();
 			this.theirTeam = this.myTeam.opponent();
+			this.direction_path = null;
 		}
 
 		/*
@@ -116,7 +149,42 @@ public class RobotPlayer {
 			return null;
 		}
 
-		public Direction getSpawnDirection(RobotType type) {
+		public void move_to_location(BaseBot bot, MapLocation loc)
+				throws GameActionException {
+//			Direction dir = facing;
+//			if (rand.nextDouble() < 0.2) {
+//				dir = get_random_direction();
+//			} else {
+//				dir = getMoveDir(loc);
+//			}
+//
+//			if (dir == null) {
+//				dir = facing;
+//			}
+//
+//			MapLocation tileInFront = rc.getLocation().add(dir);
+//
+//			// check that we are not facing off the edge of the map
+//			if (rc.senseTerrainTile(tileInFront) != TerrainTile.NORMAL) {
+//				dir = dir.rotateLeft();
+//			} else {
+//				// try to move in the facing direction
+//				if (rc.isCoreReady() && rc.canMove(dir)) {
+//					rc.move(dir);
+//				}
+//			}
+			
+			 
+			if (bot.direction_path.isEmpty()){
+				bot.direction_path = a_star_search(rc.getLocation(), loc, Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y - bot.theirHQ.y)));
+			}
+			Direction dir = bot.direction_path.remove(0);
+			if (rc.isCoreReady() && rc.canMove(dir)) {
+				rc.move(dir);
+			}
+		}
+
+		public Direction get_spawn_direction(RobotType type) {
 			Direction[] dirs = getDirectionsToward(this.theirHQ);
 			for (Direction d : dirs) {
 				if (rc.canSpawn(d, type)) {
@@ -126,7 +194,7 @@ public class RobotPlayer {
 			return null;
 		}
 
-		public Direction getBuildDirection(RobotType type) {
+		public Direction get_build_direction(RobotType type) {
 			Direction[] dirs = getDirectionsToward(this.theirHQ);
 			for (Direction d : dirs) {
 				if (rc.canBuild(d, type)) {
@@ -203,28 +271,14 @@ public class RobotPlayer {
 		public void execute() throws GameActionException {
 			int numBeavers = rc.readBroadcast(NUM_BEAVERS_CHANNEL);
 
-			if (rc.isCoreReady() && rc.getTeamOre() > 100 && numBeavers < 10) {
-				Direction newDir = getSpawnDirection(RobotType.BEAVER);
+			if (rc.isCoreReady() && rc.getTeamOre() > 100
+					&& numBeavers < BEAVER_LIMIT) {
+				Direction newDir = get_spawn_direction(RobotType.BEAVER);
 				if (newDir != null) {
 					rc.spawn(newDir, RobotType.BEAVER);
 					rc.broadcast(NUM_BEAVERS_CHANNEL, numBeavers + 1);
 				}
 			}
-
-			// MapLocation rallyPoint = new MapLocation(
-			// (this.myHQ.x + this.theirHQ.x) / 2,
-			// (this.myHQ.y + this.theirHQ.y) / 2);
-			// if (rc.readBroadcast(NUM_ATTACKERS_CHANNEL) < 50) {
-			// rallyPoint = new MapLocation(
-			// (this.myHQ.x + this.theirHQ.x) / 2,
-			// (this.myHQ.y + this.theirHQ.y) / 2);
-			// } else {
-			// // rallyPoint = this.theirHQ;
-			// rallyPoint = new MapLocation(-1, -1);
-			// }
-			// rc.broadcast(X_RALLY_CHANNEL, rallyPoint.x);
-			// rc.broadcast(Y_RALLY_CHANNEL, rallyPoint.y);
-			// MapLocation closest_tower = closest_enemy_tower();
 
 			int current_num_of_towers = rc.senseEnemyTowerLocations().length;
 			if (current_num_of_towers < this.number_of_enemy_towers) {
@@ -232,11 +286,7 @@ public class RobotPlayer {
 				this.number_of_enemy_towers = current_num_of_towers;
 			}
 
-			MapLocation rallyPoint = new MapLocation(
-					(int) (0.25 * this.myHQ.x + 0.75 * attack_sequence
-							.get(this.attack_counter).x),
-					(int) (0.25 * this.myHQ.y + 0.75 * attack_sequence
-							.get(this.attack_counter).y));
+			MapLocation rallyPoint = generate_rally_point(this);
 			rc.broadcast(X_RALLY_CHANNEL, rallyPoint.x);
 			rc.broadcast(Y_RALLY_CHANNEL, rallyPoint.y);
 
@@ -247,7 +297,7 @@ public class RobotPlayer {
 
 			RobotInfo[] rallied_troops = rc.senseNearbyRobots(rallyPoint, 30,
 					this.myTeam);
-			if (rallied_troops.length > 55) {
+			if (rallied_troops.length > 40) {
 				for (RobotInfo bot : rallied_troops) {
 					rc.broadcast(id_to_channel(bot.ID), 1);
 				}
@@ -284,10 +334,17 @@ public class RobotPlayer {
 				}
 			}
 
-			if (Clock.getRoundNum() < 300) {
-				build_unit(RobotType.MINERFACTORY);
-			} else {
-				build_unit(RobotType.BARRACKS);
+			if (Clock.getRoundNum() < 300
+					&& rc.readBroadcast(NUM_MINERFACTORY_CHANNEL) < MINERFACTORY_LIMIT) {
+				build_unit(RobotType.MINERFACTORY, get_random_direction(),
+						NUM_MINERFACTORY_CHANNEL);
+			} else if (Clock.getRoundNum() < 1000
+					&& rc.readBroadcast(NUM_BARRACKS_CHANNEL) < BARRACKS_LIMIT) {
+				build_unit(RobotType.BARRACKS, get_random_direction(),
+						NUM_BARRACKS_CHANNEL);
+			} else if (rc.readBroadcast(NUM_TANKFACTORY_CHANNEL) < TANKFACTORY_LIMIT) {
+				build_unit(RobotType.TANKFACTORY, get_random_direction(),
+						NUM_TANKFACTORY_CHANNEL);
 			}
 
 			mine_and_move();
@@ -306,17 +363,18 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
-			if (rc.isCoreReady() && rc.getTeamOre() > 200) {
-				Direction newDir = getSpawnDirection(RobotType.SOLDIER);
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.SOLDIER);
-					rc.broadcast(NUM_SOLDIERS_CHANNEL,
-							rc.readBroadcast(NUM_SOLDIERS_CHANNEL) + 1);
-					rc.broadcast(NUM_ATTACKERS_CHANNEL,
-							rc.readBroadcast(NUM_ATTACKERS_CHANNEL) + 1);
+			if (rc.getTeamOre() > 200) {
+				// Build Soldier if game is early
+				if (Clock.getRoundNum() < 1000
+						|| rc.readBroadcast(NUM_TANKFACTORY_CHANNEL) == TANKFACTORY_LIMIT) {
+					spawn_unit(RobotType.SOLDIER,
+							get_spawn_direction(RobotType.SOLDIER),
+							NUM_ATTACKERS_CHANNEL);
+				} else {
+					build_unit(RobotType.TANKFACTORY,
+							get_build_direction(RobotType.TANKFACTORY));
 				}
 			}
-
 			rc.yield();
 		}
 	}
@@ -335,13 +393,9 @@ public class RobotPlayer {
 				// BASHERs attack automatically, so let's just move around
 				// mostly randomly
 				if (rc.isCoreReady()) {
-					int fate = rand.nextInt(1000);
-					if (fate < 800) {
-						try_move(directions[rand.nextInt(8)]);
-					} else {
-						try_move(rc.getLocation().directionTo(
-								rc.senseEnemyHQLocation()));
-					}
+					int id = rc.getID();
+					MapLocation rallyPoint = get_rally_point(this, id);
+					move_to_location(this, rallyPoint);
 				}
 			} catch (Exception e) {
 				System.out.println("Basher Exception");
@@ -372,11 +426,7 @@ public class RobotPlayer {
 			} else if (rc.isCoreReady()) {
 				int id = rc.getID();
 				MapLocation rallyPoint = get_rally_point(this, id);
-
-				Direction newDir = getMoveDir(rallyPoint);
-				if (newDir != null) {
-					rc.move(newDir);
-				}
+				move_to_location(this, rallyPoint);
 			}
 			rc.yield();
 		}
@@ -445,13 +495,56 @@ public class RobotPlayer {
 		}
 
 		public void execute() throws GameActionException {
-			if (rc.isCoreReady() && rc.getTeamOre() > 300) {
-				Direction newDir = getSpawnDirection(RobotType.MINER);
-				if (newDir != null) {
-					rc.spawn(newDir, RobotType.MINER);
-				}
+			int num_of_miners = rc.readBroadcast(NUM_MINERS_CHANNEL);
+			if (rc.getTeamOre() > 300 && num_of_miners < MINER_LIMIT) {
+				spawn_unit(RobotType.MINER,
+						get_spawn_direction(RobotType.MINER),
+						NUM_MINERS_CHANNEL);
 			}
 
+			rc.yield();
+		}
+	}
+
+	/*
+	 * 
+	 * TANK LOGIC
+	 */
+	public static class Tank extends BaseBot {
+		public Tank(RobotController rc) {
+			super(rc);
+		}
+
+		public void execute() throws GameActionException {
+			RobotInfo[] enemies = getEnemiesInAttackingRange();
+
+			if (enemies.length > 0) {
+				// attack!
+				if (rc.isWeaponReady()) {
+					attackLeastHealthEnemy(enemies);
+				}
+			} else if (rc.isCoreReady()) {
+				int id = rc.getID();
+				MapLocation rallyPoint = get_rally_point(this, id);
+				move_to_location(this, rallyPoint);
+			}
+			rc.yield();
+		}
+	}
+
+	/*
+	 * 
+	 * TANKFACTORY LOGIC
+	 */
+	public static class TankFactory extends BaseBot {
+		public TankFactory(RobotController rc) {
+			super(rc);
+		}
+
+		public void execute() throws GameActionException {
+			if (rc.getTeamOre() > 200) {
+				spawn_unit(RobotType.TANK, get_spawn_direction(RobotType.TANK));
+			}
 			rc.yield();
 		}
 	}
@@ -483,57 +576,6 @@ public class RobotPlayer {
 		RobotInfo[] enemies = rc.senseNearbyRobots(my_range, enemy_team);
 		if (enemies.length > 0) {
 			rc.attackLocation(enemies[0].location);
-		}
-	}
-
-	// This method will attempt to move in Direction d (or as close to it as
-	// possible)
-	static void try_move(Direction d) throws GameActionException {
-		int offset_index = 0;
-		int[] offsets = { 0, 1, -1, 2, -2 };
-		int dir_int = direction_to_int(d);
-		while (offset_index < 5
-				&& !rc.canMove(directions[(dir_int + offsets[offset_index] + 8) % 8])) {
-			offset_index++;
-		}
-		if (offset_index < 5) {
-			rc.move(directions[(dir_int + offsets[offset_index] + 8) % 8]);
-		}
-	}
-
-	// This method will attempt to spawn in the given direction (or as close to
-	// it as possible)
-	static void try_spawn(Direction d, RobotType type)
-			throws GameActionException {
-		int offset_index = 0;
-		int[] offsets = { 0, 1, -1, 2, -2, 3, -3, 4 };
-		int dir_int = direction_to_int(d);
-		while (offset_index < 8
-				&& !rc.canSpawn(
-						directions[(dir_int + offsets[offset_index] + 8) % 8],
-						type)) {
-			offset_index++;
-		}
-		if (offset_index < 8) {
-			rc.spawn(directions[(dir_int + offsets[offset_index] + 8) % 8],
-					type);
-		}
-	}
-
-	// This method will attempt to build in the given direction (or as close to
-	// it as possible)
-	static void try_build(Direction d, RobotType type)
-			throws GameActionException {
-		int offset_index = 0;
-		int[] offsets = { 0, 1, -1, 2, -2, 3, -3, 4 };
-		int dir_int = direction_to_int(d);
-		while (offset_index < 8
-				&& !rc.canMove(directions[(dir_int + offsets[offset_index] + 8) % 8])) {
-			offset_index++;
-		}
-		if (offset_index < 8) {
-			rc.build(directions[(dir_int + offsets[offset_index] + 8) % 8],
-					type);
 		}
 	}
 
@@ -593,51 +635,63 @@ public class RobotPlayer {
 		}
 	}
 
-	private static void build_unit(RobotType type) throws GameActionException {
-		if (rc.getTeamOre() > type.oreCost) {
-			Direction buildDir = get_random_direction();
-			if (rc.isCoreReady() && rc.canBuild(buildDir, type)) {
-				rc.build(buildDir, type);
+	private static void build_unit(RobotType type, Direction d)
+			throws GameActionException {
+		if (d != null && rc.getTeamOre() > type.oreCost) {
+			if (rc.isCoreReady() && rc.canBuild(d, type)) {
+				rc.build(d, type);
 			}
 		}
 	}
 
-	private static MapLocation closest_enemy_tower() {
-		MapLocation[] enemy_towers = rc.senseEnemyTowerLocations();
-		int distance = Integer.MAX_VALUE;
-		MapLocation closest_tower = null;
-		int new_distance;
-
-		for (MapLocation m : enemy_towers) {
-			new_distance = rc.getLocation().distanceSquaredTo(m);
-			if (new_distance <= distance) {
-				closest_tower = m;
-				distance = new_distance;
+	private static void build_unit(RobotType type, Direction d, int channel)
+			throws GameActionException {
+		if (d != null && rc.getTeamOre() > type.oreCost) {
+			if (rc.isCoreReady() && rc.canBuild(d, type)) {
+				rc.build(d, type);
+				rc.broadcast(channel, rc.readBroadcast(channel) + 1);
 			}
 		}
+	}
 
-		return closest_tower;
+	private static void spawn_unit(RobotType type, Direction d)
+			throws GameActionException {
+		if (d != null && rc.isCoreReady() && rc.canSpawn(d, type)) {
+			rc.spawn(d, type);
+		}
+	}
+
+	private static void spawn_unit(RobotType type, Direction d, int channel)
+			throws GameActionException {
+		if (d != null && rc.isCoreReady() && rc.canSpawn(d, type)) {
+			rc.spawn(d, type);
+			rc.broadcast(channel, rc.readBroadcast(channel) + 1);
+		}
 	}
 
 	private static MapLocation get_rally_point(BaseBot bot, int id)
 			throws GameActionException {
 		MapLocation rallyPoint = null;
 		try {
-			int orders = rc.readBroadcast(id_to_channel(id));
-			if (orders == 0) {
-				rallyPoint = get_build_rally_point(bot);
-			} else if (orders == 1) {
-				if (low_attack_density(bot)) {
-					rallyPoint = get_build_rally_point(bot);
-					rc.broadcast(id_to_channel(id), 0);
-
-				} else {
-					rallyPoint = new MapLocation(
-							rc.readBroadcast(X_CLOSEST_TOWER_CHANNEL),
-							rc.readBroadcast(Y_CLOSEST_TOWER_CHANNEL));
-				}
-			} else if (rallyPoint == null || orders == 2) {
+			if (Clock.getRoundNum() > FINAL_PUSH_ROUND) {
 				rallyPoint = bot.theirHQ;
+			} else {
+				int orders = rc.readBroadcast(id_to_channel(id));
+				if (orders == 0) {
+					rallyPoint = get_build_rally_point(bot);
+				} else if (orders == 1) {
+					if (low_attack_density(bot)) {
+						rallyPoint = get_build_rally_point(bot);
+						rc.broadcast(id_to_channel(id), 0);
+
+					} else {
+						rallyPoint = new MapLocation(
+								rc.readBroadcast(X_CLOSEST_TOWER_CHANNEL),
+								rc.readBroadcast(Y_CLOSEST_TOWER_CHANNEL));
+					}
+				} else if (rallyPoint == null || orders == 2) {
+					rallyPoint = bot.theirHQ;
+				}
 			}
 		} catch (Exception e) {
 			System.out.println("out of bounds");
@@ -671,6 +725,16 @@ public class RobotPlayer {
 			enemy_locations.remove(closest);
 			shortest_distance = Integer.MAX_VALUE;
 		}
+	}
+
+	private static MapLocation generate_rally_point(HQ bot) {
+		return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
+				(bot.myHQ.y + bot.theirHQ.y) / 2);
+		// return new MapLocation(
+		// (int) (0.25 * bot.myHQ.x + 0.75 * attack_sequence
+		// .get(bot.attack_counter).x),
+		// (int) (0.25 * bot.myHQ.y + 0.75 * attack_sequence
+		// .get(bot.attack_counter).y));
 	}
 
 	private static boolean low_attack_density(BaseBot bot) {
@@ -708,5 +772,79 @@ public class RobotPlayer {
 		default:
 			return -1;
 		}
+	}
+
+	static private int manhattan_distance(MapLocation a, MapLocation b) {
+		return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+	}
+
+	static private MapLocation[] get_neighbors(MapLocation loc) {
+		MapLocation[] neighbors = new MapLocation[8];
+		for (int i = 0; i < directions.length; i++) {
+			neighbors[i] = loc.add(directions[i]);
+		}
+		return neighbors;
+	}
+
+	static private List<Direction> a_star_search(
+			MapLocation start, MapLocation finish, int max_nodes) {
+		PriorityQueue<Tuple<MapLocation, Integer>> frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
+				max_nodes, new Comparator<Tuple<MapLocation, Integer>>() {
+
+					@Override
+					public int compare(Tuple<MapLocation, Integer> o1,
+							Tuple<MapLocation, Integer> o2) {
+						if (o1.y < o2.y) {
+							return -1;
+						} else if (o1.y > o2.y) {
+							return 1;
+						} else {
+							return 0;
+						}
+					}
+				});
+
+		frontier.add(new Tuple<MapLocation, Integer>(start, 0));
+		List<Direction> direction_path = new ArrayList<Direction>();
+		Map<MapLocation, Integer> cost_so_far = new HashMap<MapLocation, Integer>();
+		cost_so_far.put(start, 0);
+
+		MapLocation current;
+		while (!frontier.isEmpty()) {
+			current = frontier.poll().x;
+
+			if (current.equals(finish)) {
+				break;
+			}
+
+			MapLocation[] neighbors = get_neighbors(current);
+			MapLocation next;
+			int new_cost, priority;
+			for (int i=0; i<neighbors.length; i++) {
+				next = neighbors[i];
+				new_cost = cost_so_far.get(current) + 1;
+				if (!cost_so_far.containsKey(next)
+						|| new_cost < cost_so_far.get(next)) {
+					cost_so_far.put(next, new_cost);
+					priority = new_cost + manhattan_distance(next, finish);
+					frontier.add(new Tuple<MapLocation, Integer>(next, priority));
+					direction_path.add(directions[i]);
+				}
+
+			}
+
+		}
+
+		return direction_path;
+	}
+}
+
+class Tuple<X, Y> {
+	public final X x;
+	public final Y y;
+
+	public Tuple(X x, Y y) {
+		this.x = x;
+		this.y = y;
 	}
 }
