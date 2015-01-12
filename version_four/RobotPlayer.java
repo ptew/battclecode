@@ -49,6 +49,7 @@ public class RobotPlayer {
 	static int BEAVER_LIMIT = 10;
 	static int TANKFACTORY_LIMIT = 3;
 	static int FINAL_PUSH_ROUND = 1700;
+	static int PATHFINDING_ROUND_LIMIT = 10;
 
 	public static void run(RobotController controller) {
 		rc = controller;
@@ -115,6 +116,7 @@ public class RobotPlayer {
 		protected MapLocation myHQ, theirHQ;
 		protected Team myTeam, theirTeam;
 		protected Queue<MapLocation> path;
+		private int last_path_round;
 
 		public BaseBot(RobotController rc) {
 			this.rc = rc;
@@ -124,6 +126,7 @@ public class RobotPlayer {
 			this.myTeam = rc.getTeam();
 			this.theirTeam = this.myTeam.opponent();
 			this.path = null;
+			this.last_path_round = -1;
 		}
 
 		/*
@@ -174,15 +177,18 @@ public class RobotPlayer {
 				}
 			}
 			
-			 
-//			if (bot.path == null || bot.path.isEmpty()){
+//			 
+//			if (bot.path == null || bot.path.isEmpty() || Clock.getRoundNum() - bot.last_path_round > PATHFINDING_ROUND_LIMIT){
 //				bot.path = a_star_search(rc.getLocation(), loc, Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y - bot.theirHQ.y)));
-//			}
+//				bot.last_path_round = Clock.getRoundNum();
+//			} 
+//			
 //			if(!bot.path.isEmpty()){
 //				Direction dir = getMoveDir(bot.path.element());
 //				if (rc.isCoreReady() && rc.canMove(dir)) {
 //					bot.path.remove();
 //					rc.move(dir);
+//					rc.setIndicatorString(0, bot.path.toString());
 //				}
 //			}
 			return bot.path;
@@ -735,9 +741,9 @@ public class RobotPlayer {
 //		return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
 //				(bot.myHQ.y + bot.theirHQ.y) / 2);
 		 return new MapLocation(
-		 (int) (0.75 * bot.myHQ.x + 0.25 * attack_sequence
+		 (int) (0.5 * bot.myHQ.x + 0.5 * attack_sequence
 		 .get(bot.attack_counter).x),
-		 (int) (0.75 * bot.myHQ.y + 0.25 * attack_sequence
+		 (int) (0.5 * bot.myHQ.y + 0.5 * attack_sequence
 		 .get(bot.attack_counter).y));
 	}
 
