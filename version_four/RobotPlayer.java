@@ -176,21 +176,24 @@ public class RobotPlayer {
 					rc.move(dir);
 				}
 			}
-			
-//			 
-//			if (bot.path == null || bot.path.isEmpty() || Clock.getRoundNum() - bot.last_path_round > PATHFINDING_ROUND_LIMIT){
-//				bot.path = a_star_search(rc.getLocation(), loc, Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y - bot.theirHQ.y)));
-//				bot.last_path_round = Clock.getRoundNum();
-//			} 
-//			
-//			if(!bot.path.isEmpty()){
-//				Direction dir = getMoveDir(bot.path.element());
-//				if (rc.isCoreReady() && rc.canMove(dir)) {
-//					bot.path.remove();
-//					rc.move(dir);
-//					rc.setIndicatorString(0, bot.path.toString());
-//				}
-//			}
+
+			//
+			// if (bot.path == null || bot.path.isEmpty() || Clock.getRoundNum()
+			// - bot.last_path_round > PATHFINDING_ROUND_LIMIT){
+			// bot.path = a_star_search(rc.getLocation(), loc,
+			// Math.abs((bot.myHQ.x -bot.theirHQ.x) * (bot.myHQ.y -
+			// bot.theirHQ.y)));
+			// bot.last_path_round = Clock.getRoundNum();
+			// }
+			//
+			// if(!bot.path.isEmpty()){
+			// Direction dir = getMoveDir(bot.path.element());
+			// if (rc.isCoreReady() && rc.canMove(dir)) {
+			// bot.path.remove();
+			// rc.move(dir);
+			// rc.setIndicatorString(0, bot.path.toString());
+			// }
+			// }
 			return bot.path;
 		}
 
@@ -738,13 +741,13 @@ public class RobotPlayer {
 	}
 
 	private static MapLocation generate_rally_point(HQ bot) {
-//		return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
-//				(bot.myHQ.y + bot.theirHQ.y) / 2);
-		 return new MapLocation(
-		 (int) (0.5 * bot.myHQ.x + 0.5 * attack_sequence
-		 .get(bot.attack_counter).x),
-		 (int) (0.5 * bot.myHQ.y + 0.5 * attack_sequence
-		 .get(bot.attack_counter).y));
+		// return new MapLocation((bot.myHQ.x + bot.theirHQ.x) / 2,
+		// (bot.myHQ.y + bot.theirHQ.y) / 2);
+		return new MapLocation(
+				(int) (0.5 * bot.myHQ.x + 0.5 * attack_sequence
+						.get(bot.attack_counter).x),
+				(int) (0.5 * bot.myHQ.y + 0.5 * attack_sequence
+						.get(bot.attack_counter).y));
 	}
 
 	private static boolean low_attack_density(BaseBot bot) {
@@ -796,8 +799,8 @@ public class RobotPlayer {
 		return neighbors;
 	}
 
-	static private Queue<MapLocation> a_star_search(
-			MapLocation start, MapLocation finish, int max_nodes) {
+	static private Queue<MapLocation> a_star_search(MapLocation start,
+			MapLocation finish, int max_nodes) {
 		PriorityQueue<Tuple<MapLocation, Integer>> frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
 				max_nodes, new Comparator<Tuple<MapLocation, Integer>>() {
 
@@ -830,7 +833,7 @@ public class RobotPlayer {
 			MapLocation[] neighbors = get_neighbors(current);
 			MapLocation next;
 			int new_cost, priority;
-			for (int i=0; i<neighbors.length; i++) {
+			for (int i = 0; i < neighbors.length; i++) {
 				next = neighbors[i];
 				new_cost = cost_so_far.get(current) + 1;
 				if (!cost_so_far.containsKey(next)
@@ -838,7 +841,7 @@ public class RobotPlayer {
 					cost_so_far.put(next, new_cost);
 					priority = new_cost + manhattan_distance(next, finish);
 					frontier.add(new Tuple<MapLocation, Integer>(next, priority));
-//					direction_path.add(directions[i]);
+					// direction_path.add(directions[i]);
 					path.add(next);
 				}
 
