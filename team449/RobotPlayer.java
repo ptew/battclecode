@@ -1,4 +1,4 @@
-package version_eight;
+package team449;
 
 import battlecode.common.*;
 
@@ -8,7 +8,9 @@ import java.lang.Math;
 /*
  * Ideas:
  *  -- use tanks in defense positions on open maps
- *  -- better pathfinding
+ *  
+ *  -- Develop defensive strategy to take out two quick towers and then defend
+ *  -- 
  * 
  */
 public class RobotPlayer {
@@ -40,18 +42,15 @@ public class RobotPlayer {
 	static int STRATEGY_CHANNEL = 12;
 	static int X_ISOLATED_CHANNEL = 13;
 	static int Y_ISOLATED_CHANNEL = 14;
-	static int NUM_TECH_CHANNEL = 15;
-	static int NUM_TRAINING_FIELD_CHANNEL = 16;
-	static int NUM_COMMANDERS_CHANNEL = 17;
-	static int COMMANDER_ID_CHANNEL = 18;
 	static int NUM_ISOLATED_TOWER_CHANNEL = 100;
 	static int ISOLATED_TOWER_ATTACK_CHANNEL = 101;
+	static int ISO_TARGET_UPDATE_LIMIT = 150;
 
 	// LOGIC CONSTANTS
 	static int MINERFACTORY_LIMIT = 1;
 	static int BARRACKS_LIMIT = 4;
 	static int MINER_LIMIT = 12;
-	static int BEAVER_LIMIT = 3;
+	static int BEAVER_LIMIT = 10;
 	static int TANKFACTORY_LIMIT = 3;
 	static int FINAL_PUSH_ROUND = 1700;
 	static int PATHFINDING_ROUND_LIMIT = 10;
@@ -70,11 +69,7 @@ public class RobotPlayer {
 	static int BUILD_ORDER = 0;
 	static int ATTACK_SEQUENCE_ORDER = 1;
 	static int ATTACK_ISOLATED_ORDER = 3;
-	static int COMMANDER_RALLY_ORDER = 4;
 	static int ISO_TOWER_LIMIT = 2;
-	static int TECH_LIMIT = 1;
-	static int TRAINING_FIELD_LIMIT = 1;
-	static int ISO_TARGET_UPDATE_LIMIT = 150;
 
 	public static void run(RobotController controller) {
 		rc = controller;
@@ -128,15 +123,6 @@ public class RobotPlayer {
 			break;
 		case HELIPAD:
 			bot = new SimpleBuilder(rc);
-			break;
-		case TECHNOLOGYINSTITUTE:
-			bot = new SimpleBuilder(rc);
-			break;
-		case TRAININGFIELD:
-			bot = new SimpleBuilder(rc);
-			break;
-		case COMMANDER:
-			bot = new Commander(rc);
 			break;
 		default:
 			bot = new BaseBot(rc);
@@ -199,18 +185,18 @@ public class RobotPlayer {
 				dir = get_random_direction();
 			} else {
 				dir = getMoveDir(loc);
-				if (dir == null) {
-					dir = facing;
-				}
+			}
+
+			if (dir == null) {
+				dir = facing;
 			}
 
 			MapLocation tileInFront = rc.getLocation().add(dir);
-
+			
 			boolean tileInFrontSafe = true;
 			MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
 			for (MapLocation m : enemyTowers) {
-				if (!m.equals(loc)
-						&& m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared) {
+				if (!m.equals(loc) && m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared) {
 					tileInFrontSafe = false;
 					break;
 				}
@@ -258,7 +244,7 @@ public class RobotPlayer {
 
 		public RobotInfo[] getEnemiesInAttackingRange() {
 			RobotInfo[] enemies = rc.senseNearbyRobots(
-					rc.getType().attackRadiusSquared, theirTeam);
+					RobotType.SOLDIER.attackRadiusSquared, theirTeam);
 			return enemies;
 		}
 
@@ -516,7 +502,7 @@ public class RobotPlayer {
 				enemy_locations.remove(closest);
 				shortest_distance = Integer.MAX_VALUE;
 			}
-
+			
 			rc.broadcast(X_ATTACK_CHANNEL,
 					attack_sequence.get(attack_counter).x);
 			rc.broadcast(Y_ATTACK_CHANNEL,
@@ -564,9 +550,6 @@ public class RobotPlayer {
 			// attack)
 			enemy_towers = rc.senseEnemyTowerLocations();
 			if (enemy_towers.length < prev_number_of_towers) {
-				rc.broadcast(
-						id_to_channel(rc.readBroadcast(COMMANDER_ID_CHANNEL)),
-						COMMANDER_RALLY_ORDER);
 				prev_number_of_towers = enemy_towers.length;
 
 				Boolean missing;
@@ -601,15 +584,15 @@ public class RobotPlayer {
 				rc.broadcast(X_ISOLATED_CHANNEL, isolated_targets.get(0).x);
 				rc.broadcast(Y_ISOLATED_CHANNEL, isolated_targets.get(0).y);
 			} else {
-				rc.broadcast(X_ISOLATED_CHANNEL,
-						attack_sequence.get(attack_counter).x);
-				rc.broadcast(Y_ISOLATED_CHANNEL,
-						attack_sequence.get(attack_counter).y);
+				rc.broadcast(X_ISOLATED_CHANNEL, attack_sequence.get(attack_counter).x);
+				rc.broadcast(Y_ISOLATED_CHANNEL, attack_sequence.get(attack_counter).y);
 				rc.broadcast(X_ATTACK_CHANNEL,
 						attack_sequence.get(attack_counter).x);
 				rc.broadcast(Y_ATTACK_CHANNEL,
 						attack_sequence.get(attack_counter).y);
-			}
+			} 
+			
+			
 
 			// Send the troops at the current rally_point if there are enough
 			RobotInfo[] rallied_troops;
@@ -666,27 +649,11 @@ public class RobotPlayer {
 					attackLeastHealthEnemy(enemies);
 				}
 			}
-			int round_number = Clock.getRoundNum();
-			if (rc.readBroadcast(NUM_TECH_CHANNEL) < TECH_LIMIT
-					&& rc.getTeamOre() >= RobotType.TECHNOLOGYINSTITUTE.oreCost
-					&& round_number < 300) {
 
-				build_unit(RobotType.TECHNOLOGYINSTITUTE,
-						get_random_direction(), NUM_TECH_CHANNEL);
-
-			} else if (rc.readBroadcast(NUM_TRAINING_FIELD_CHANNEL) < TRAINING_FIELD_LIMIT
-					&& rc.getTeamOre() >= RobotType.TRAININGFIELD.oreCost
-					&& round_number < 400) {
-
-				build_unit(RobotType.TRAININGFIELD, get_random_direction(),
-						NUM_TRAINING_FIELD_CHANNEL);
-
-			} else if (Clock.getRoundNum() < 300
+			if (Clock.getRoundNum() < 300
 					&& rc.readBroadcast(NUM_MINERFACTORY_CHANNEL) < MINERFACTORY_LIMIT) {
-
 				build_unit(RobotType.MINERFACTORY, get_random_direction(),
 						NUM_MINERFACTORY_CHANNEL);
-
 			} else {
 				int strategy = rc.readBroadcast(STRATEGY_CHANNEL);
 
@@ -713,94 +680,30 @@ public class RobotPlayer {
 
 	/*
 	 * 
-	 * COMMANDER LOGIC
+	 * BASHER LOGIC
 	 */
-	public static class Commander extends BaseBot {
-		private MapLocation existing_isolated_target;
-		private MapLocation last_destination;
-
-		public Commander(RobotController rc) {
-			super(rc);
-			existing_isolated_target = null;
-			last_destination = null;
-		}
-
-		public void execute() throws GameActionException {
-			RobotInfo[] enemies = getEnemiesInAttackingRange();
-			rc.broadcast(COMMANDER_ID_CHANNEL, rc.getID());
-			if (enemies.length > 0) {
-				// attack!
-				if (rc.isWeaponReady()) {
-					attackLeastHealthEnemy(enemies);
-				}
-			} else if (rc.isCoreReady()) {
-				int id = rc.getID();
-				MapLocation next_loc = get_next_move(this, id);
-				this.path = move_to_location(this, next_loc);
-			}
-			rc.yield();
-		}
-
-		private MapLocation get_next_move(BaseBot bot, int id)
-				throws GameActionException {
-			int x_channel, y_channel;
-			if (Clock.getRoundNum() > FINAL_PUSH_ROUND) {
-				x_channel = X_ATTACK_CHANNEL;
-				y_channel = Y_ATTACK_CHANNEL;
-
-			} else {
-				int order = rc.readBroadcast(id_to_channel(id));
-				if (order == ATTACK_ISOLATED_ORDER) {
-					if (existing_isolated_target == null) {
-						existing_isolated_target = location_from_channel(
-								X_ISOLATED_CHANNEL, Y_ISOLATED_CHANNEL);
-					}
-					return existing_isolated_target;
-				} else if (order == ATTACK_SEQUENCE_ORDER
-						&& !low_attack_density(bot)) {
-					x_channel = X_ATTACK_CHANNEL;
-					y_channel = Y_ATTACK_CHANNEL;
-				} else {
-					// go to build rally point
-					x_channel = X_RALLY_CHANNEL;
-					y_channel = Y_RALLY_CHANNEL;
-				}
-			}
-			MapLocation move_loc = location_from_channel(x_channel, y_channel);
-			set_robot_string(rc, move_loc.toString());
-			if (!move_loc.equals(last_destination)) {
-				last_destination = move_loc;
-			}
-			return move_loc;
-		}
-
-		private Queue<MapLocation> move_to_location(Commander bot,
-				MapLocation loc) throws GameActionException {
-			Direction dir = facing;
-
-			// check that we are not facing off the edge of the map
-			if (bot.path == null || Clock.getRoundNum() % 100 == 0
-					|| !loc.equals(last_destination)) {
-				bot.path = a_star_search(
-						rc.getLocation(),
-						loc,
-						Math.abs((bot.myHQ.x - bot.theirHQ.x)
-								* (bot.myHQ.y - bot.theirHQ.y)));
-			}
-
-			// try to move in the facing direction
-			if (rc.isCoreReady() && bot.path.size() > 0 && rc.canMove(dir)) {
-
-				MapLocation dest = bot.path.remove();
-				dir = getMoveDir(dest);
-				if (dir != null) {
-					rc.move(dir);
-				}
-			}
-
-			return bot.path;
-		}
-	}
+	// public static class Basher extends BaseBot {
+	// public Basher(RobotController rc) {
+	// super(rc);
+	// }
+	//
+	// public void execute() throws GameActionException {
+	// try {
+	// // BASHERs attack automatically, so let's just move around
+	// // mostly randomly
+	// if (rc.isCoreReady()) {
+	// int id = rc.getID();
+	// MapLocation rally_point = get_next_move(this, id);
+	// this.path = move_to_location(this, rally_point);
+	// }
+	// } catch (Exception e) {
+	// System.out.println("Basher Exception");
+	// e.printStackTrace();
+	// }
+	//
+	// rc.yield();
+	// }
+	// }
 
 	/*
 	 * 
@@ -826,6 +729,7 @@ public class RobotPlayer {
 			} else if (rc.isCoreReady()) {
 				int id = rc.getID();
 				MapLocation rally_point = get_next_move(this, id);
+//				set_robot_string(rc, rally_point.toString());
 				this.path = move_to_location(this, rally_point);
 			}
 			rc.yield();
@@ -867,6 +771,7 @@ public class RobotPlayer {
 					x_channel = X_RALLY_CHANNEL;
 					y_channel = Y_RALLY_CHANNEL;
 				}
+				set_robot_string(rc, location_from_channel(x_channel, y_channel) +" : " + x_channel + " : " + y_channel + " : " + (Clock.getRoundNum() - last_iso_target_update) + " : " + Integer.toString(order));
 			}
 			return location_from_channel(x_channel, y_channel);
 		}
@@ -899,10 +804,6 @@ public class RobotPlayer {
 				break;
 			case HELIPAD:
 				spawn_type = RobotType.DRONE;
-				break;
-			case TRAININGFIELD:
-				spawn_type = RobotType.COMMANDER;
-				channel = NUM_COMMANDERS_CHANNEL;
 				break;
 			default:
 				break;
@@ -941,142 +842,9 @@ public class RobotPlayer {
 				}
 			}
 
-			circular_mine_move();
+			mine_and_move();
+
 			rc.yield();
-		}
-
-		// if north, try to move left, then right, then northwest,
-		// northeast,
-		// north else movearound
-		// if south try to move west, east, southwest, southeast, south else
-		// movearound
-		// if west, try to move south, north, southwest, northwest, west
-		// else
-		// movearound
-		// if east, try to move north, south, northeast, southeast, east
-		// else
-		// movearound
-
-		static Direction[] NORTH_MINE_DIRS = { Direction.WEST, Direction.EAST,
-				Direction.NORTH_WEST, Direction.NORTH_EAST, Direction.NORTH };
-		static Direction[] SOUTH_MINE_DIRS = { Direction.EAST, Direction.WEST,
-				Direction.SOUTH_EAST, Direction.SOUTH_WEST, Direction.SOUTH };
-		static Direction[] WEST_MINE_DIRS = { Direction.SOUTH, Direction.NORTH,
-				Direction.SOUTH_WEST, Direction.NORTH_WEST, Direction.WEST };
-		static Direction[] EAST_MINE_DIRS = { Direction.NORTH, Direction.SOUTH,
-				Direction.NORTH_EAST, Direction.SOUTH_EAST, Direction.EAST };
-
-		private void circular_mine_move() throws GameActionException {
-			// Find where the head quarters is.
-			if (rc.isCoreReady()) {
-				
-			if (rc.senseOre(rc.getLocation()) > 1) {// there is ore, so try to
-													// mine
-				if (rc.canMine()) {
-					rc.mine();
-				}
-			} else {
-				MapLocation current_location = rc.getLocation();
-				Direction[] dir_list = get_direction_list(determine_dir_from_hq(
-						this.myHQ, current_location));
-
-				Direction max_move_dir = null;
-				double max_ore = Integer.MIN_VALUE;
-				double ore;
-				MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
-				boolean tileInFrontSafe;
-				for (Direction dir : dir_list) {
-					tileInFrontSafe = true;
-					MapLocation tileInFront = current_location.add(dir);
-
-					if (rc.senseOre(tileInFront) > 2) {
-						// check that the direction in front is not a tile that
-						// can
-						// be
-						// attacked
-						// by the enemy towers
-						for (MapLocation m : enemyTowers) {
-							if (m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared) {
-								tileInFrontSafe = false;
-								break;
-							}
-						}
-
-						// check that we are not facing off the edge of the map
-						if (rc.senseTerrainTile(tileInFront) == TerrainTile.NORMAL
-								&& tileInFrontSafe) {
-							ore = rc.senseOre(tileInFront);
-							// try to move in the facing direction
-							if (rc.canMove(dir) && ore > max_ore) {
-								max_move_dir = dir;
-								max_ore = ore;
-							}
-						}
-					}
-
-				}
-
-				if (max_move_dir == null) {
-					move_around();
-				} else {
-					if (rc.isCoreReady()){
-						rc.move(max_move_dir);
-					}
-				}
-			}
-			}
-		}
-
-		private Direction determine_dir_from_hq(MapLocation hq,
-				MapLocation current_loc) {
-			int x_diff = current_loc.x - hq.x;
-			int y_diff = current_loc.y - hq.y;
-			boolean mag_x_larger = Math.abs(x_diff) > Math.abs(y_diff);
-
-			// positive x_diff ==> to the east
-			// positive y_diff ==> to the south
-			Direction dir;
-
-			if (x_diff > 0 && y_diff > 0) {
-				if (mag_x_larger) {
-					dir = Direction.EAST;
-				} else {
-					dir = Direction.SOUTH;
-				}
-			} else if (x_diff > 0 && y_diff < 0) {
-				if (mag_x_larger) {
-					dir = Direction.EAST;
-				} else {
-					dir = Direction.NORTH;
-				}
-			} else if (x_diff < 0 && y_diff > 0) {
-				if (mag_x_larger) {
-					dir = Direction.WEST;
-				} else {
-					dir = Direction.SOUTH;
-				}
-			} else {
-				if (mag_x_larger) {
-					dir = Direction.WEST;
-				} else {
-					dir = Direction.NORTH;
-				}
-			}
-			return dir;
-		}
-
-		private static Direction[] get_direction_list(Direction dir) {
-			Direction[] dir_list;
-			if (dir.equals(Direction.NORTH)) {
-				dir_list = NORTH_MINE_DIRS;
-			} else if (dir.equals(Direction.SOUTH)) {
-				dir_list = SOUTH_MINE_DIRS;
-			} else if (dir.equals(Direction.WEST)) {
-				dir_list = WEST_MINE_DIRS;
-			} else {
-				dir_list = EAST_MINE_DIRS;
-			}
-			return dir_list;
 		}
 	}
 
@@ -1238,14 +1006,6 @@ public class RobotPlayer {
 		return rc.senseNearbyRobots(rc.getLocation(), 30, bot.myTeam).length < 10;
 	}
 
-	private static boolean attack_density(BaseBot bot) {
-		return rc.senseNearbyRobots(rc.getLocation(), 20, bot.myTeam).length > 20;
-	}
-
-	private static boolean iso_attack_density(BaseBot bot) {
-		return rc.senseNearbyRobots(rc.getLocation(), 20, bot.myTeam).length > 10;
-	}
-
 	private static int id_to_channel(int id) {
 		return (id % 3500) + 3000;
 	}
@@ -1271,98 +1031,5 @@ public class RobotPlayer {
 		default:
 			return -1;
 		}
-	}
-
-	static private int manhattan_distance(MapLocation a, MapLocation b) {
-		return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-	}
-
-	static private MapLocation[] get_neighbors(MapLocation loc) {
-		MapLocation[] neighbors = new MapLocation[8];
-		for (int i = 0; i < directions.length; i++) {
-			neighbors[i] = loc.add(directions[i]);
-		}
-		return neighbors;
-	}
-
-	static private Queue<MapLocation> a_star_search(MapLocation start,
-			MapLocation finish, int max_nodes) {
-		PriorityQueue<Tuple<MapLocation, Integer>> frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
-				max_nodes, new Comparator<Tuple<MapLocation, Integer>>() {
-
-					@Override
-					public int compare(Tuple<MapLocation, Integer> o1,
-							Tuple<MapLocation, Integer> o2) {
-						if (o1.y < o2.y) {
-							return -1;
-						} else if (o1.y > o2.y) {
-							return 1;
-						} else {
-							return 0;
-						}
-					}
-				});
-
-		frontier.add(new Tuple<MapLocation, Integer>(start, 0));
-		Queue<MapLocation> path = new LinkedList<MapLocation>();
-		Map<MapLocation, Integer> cost_so_far = new Hashtable<MapLocation, Integer>();
-		cost_so_far.put(start, 0);
-
-		MapLocation current;
-		while (!frontier.isEmpty()) {
-			current = frontier.poll().x;
-
-			if (current.equals(finish)) {
-				break;
-			}
-
-			MapLocation[] neighbors = get_neighbors(current);
-			MapLocation next;
-			int new_cost, priority;
-			for (int i = 0; i < neighbors.length; i++) {
-				next = neighbors[i];
-
-				// check that the direction in front is not a tile that can be
-				// attacked
-				// by the enemy towers
-				MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
-				boolean tileInFrontSafe = true;
-				for (MapLocation m : enemyTowers) {
-					if (m.distanceSquaredTo(next) <= RobotType.TOWER.attackRadiusSquared) {
-						tileInFrontSafe = false;
-						break;
-					}
-				}
-
-				// check that we are not facing off the edge of the map
-				if (rc.senseTerrainTile(next) == TerrainTile.NORMAL
-						&& tileInFrontSafe) {
-					new_cost = cost_so_far.get(current) + 1;
-					if (!cost_so_far.containsKey(next)
-							|| new_cost < cost_so_far.get(next)) {
-						cost_so_far.put(next, new_cost);
-						priority = new_cost + manhattan_distance(next, finish);
-						frontier.add(new Tuple<MapLocation, Integer>(next,
-								priority));
-						// direction_path.add(directions[i]);
-						path.add(next);
-					}
-				}
-
-			}
-
-		}
-		System.out.println(path.toString());
-		return path;
-	}
-}
-
-class Tuple<X, Y> {
-	public final X x;
-	public final Y y;
-
-	public Tuple(X x, Y y) {
-		this.x = x;
-		this.y = y;
 	}
 }
