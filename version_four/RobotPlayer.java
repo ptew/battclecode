@@ -103,8 +103,8 @@ public class RobotPlayer {
 
 		while (true) {
 			try {
-				bot.go();
 				transfer_supplies();
+				bot.go();
 			} catch (Exception e) {
 				e.printStackTrace();
 			}

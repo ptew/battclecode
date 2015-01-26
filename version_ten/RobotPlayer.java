@@ -1,9 +1,11 @@
-package team449;
+package version_ten;
 
 import battlecode.common.*;
 
 import java.util.*;
 import java.lang.Math;
+
+import version_nine.RobotPlayer.BaseBot;
 
 public class RobotPlayer {
 	// Static Variables for the Match
@@ -518,24 +520,10 @@ public class RobotPlayer {
 					attack_sequence.get(attack_counter).y);
 		}
 
-		private MapLocation closest_tower(MapLocation hq, MapLocation target) {
-			MapLocation[] towers = rc.senseTowerLocations();
-			int shortest_distance = Integer.MAX_VALUE;
-			MapLocation closest = hq;
-			for (MapLocation loc : towers) {
-				int new_distance = target.distanceSquaredTo(loc);
-				if (new_distance < shortest_distance) {
-					shortest_distance = new_distance;
-					closest = loc;
-				}
-			}
-			return closest;
-		}
-
 		private MapLocation generate_rally_point(HQ bot)
 				throws GameActionException {
 			if (isolated_targets.size() > 0) {
-				return closest_tower(bot.myHQ, isolated_targets.get(0));
+				return halfway_between(bot.myHQ, isolated_targets.get(0));
 			} else if (attack_sequence.size() == 0) {
 				return halfway_between(bot.myHQ, bot.theirHQ);
 			}
@@ -760,7 +748,7 @@ public class RobotPlayer {
 			// set_robot_string(rc, loc.toString());
 			return loc;
 		}
-
+		
 		public Queue<MapLocation> move_to_location(SimpleAttacker bot,
 				MapLocation loc) throws GameActionException {
 			MapLocation current_location = rc.getLocation();
@@ -858,22 +846,22 @@ public class RobotPlayer {
 			}
 			rc.yield();
 		}
-
-		// public void execute() throws GameActionException {
-		// RobotInfo[] enemies = getEnemiesInAttackingRange();
-		// if (enemies.length > 0) {
-		// // attack!
-		// if (rc.isWeaponReady()) {
-		// attackLeastHealthEnemy(enemies);
-		// }
-		// } else {
-		// int id = rc.getID();
-		// MapLocation next_loc = get_next_move(this, id);
-		// this.path = move_to_location(this, next_loc);
-		// }
-		// rc.yield();
-		// }
-
+		
+//		public void execute() throws GameActionException {
+//			RobotInfo[] enemies = getEnemiesInAttackingRange();
+//			if (enemies.length > 0) {
+//				// attack!
+//				if (rc.isWeaponReady()) {
+//					attackLeastHealthEnemy(enemies);
+//				}
+//			} else {
+//				int id = rc.getID();
+//				MapLocation next_loc = get_next_move(this, id);
+//				this.path = move_to_location(this, next_loc);
+//			}
+//			rc.yield();
+//		}
+		
 		private MapLocation get_next_move(BaseBot bot, int id)
 				throws GameActionException {
 			int x_channel, y_channel;
@@ -905,53 +893,53 @@ public class RobotPlayer {
 			return location_from_channel(x_channel, y_channel);
 		}
 
-		// public Queue<MapLocation> move_to_location(SimpleAttacker bot,
-		// MapLocation loc) throws GameActionException {
-		// MapLocation current_location = rc.getLocation();
-		//
-		// if (bot.path == null || bot.path.size() == 0
-		// || !loc.equals(last_dest)) {
-		// last_dest = loc;
-		// MapLocation finish = closer_finish(current_location, loc);
-		// // MapLocation finish = loc;
-		// if (frontier.size() == 0 || cost_so_far.size() == 0) {
-		// frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
-		// 100, comparater);
-		// came_from = new Hashtable<MapLocation, MapLocation>();
-		// cost_so_far = new Hashtable<MapLocation, Integer>();
-		// frontier.add(new Tuple<MapLocation, Integer>(
-		// current_location, 0));
-		// cost_so_far.put(current_location, 0);
-		// came_from.put(current_location, current_location);
-		// }
-		// bot.path = a_star_search(current_location, finish, frontier,
-		// came_from, cost_so_far);
-		// if (bot.path != null && bot.path.size() > 0) {
-		// set_robot_string(rc, bot.path.peek().toString());
-		// } else {
-		// set_robot_string(rc, Integer.toString(frontier.size()));
-		// }
-		// }
-		//
-		// // try to move in the facing direction
-		// if (rc.isCoreReady() && bot.path != null && bot.path.size() > 0) {
-		// MapLocation dest = bot.path.peek();
-		// Direction dir = current_location.directionTo(dest);
-		// if (rc.canMove(dir)) {
-		// rc.move(dir);
-		// bot.path.remove();
-		// } else {
-		// dir = getMoveDir(dest);
-		// if(dir != null){
-		// rc.move(dir);
-		// bot.path.remove();
-		// }
-		// }
-		//
-		// }
-		//
-		// return bot.path;
-		// }
+//		public Queue<MapLocation> move_to_location(SimpleAttacker bot,
+//				MapLocation loc) throws GameActionException {
+//			MapLocation current_location = rc.getLocation();
+//
+//			if (bot.path == null || bot.path.size() == 0
+//					|| !loc.equals(last_dest)) {
+//				last_dest = loc;
+//				MapLocation finish = closer_finish(current_location, loc);
+////				MapLocation finish = loc;
+//				if (frontier.size() == 0 || cost_so_far.size() == 0) {
+//					frontier = new PriorityQueue<Tuple<MapLocation, Integer>>(
+//							100, comparater);
+//					came_from = new Hashtable<MapLocation, MapLocation>();
+//					cost_so_far = new Hashtable<MapLocation, Integer>();
+//					frontier.add(new Tuple<MapLocation, Integer>(
+//							current_location, 0));
+//					cost_so_far.put(current_location, 0);
+//					came_from.put(current_location, current_location);
+//				}
+//				bot.path = a_star_search(current_location, finish, frontier,
+//						came_from, cost_so_far);
+//				if (bot.path != null && bot.path.size() > 0) {
+//					set_robot_string(rc, bot.path.peek().toString());
+//				} else {
+//					set_robot_string(rc, Integer.toString(frontier.size()));
+//				}
+//			}
+//
+//			// try to move in the facing direction
+//			if (rc.isCoreReady() && bot.path != null && bot.path.size() > 0) {
+//				MapLocation dest = bot.path.peek();
+//				Direction dir = current_location.directionTo(dest);
+//				if (rc.canMove(dir)) {
+//					rc.move(dir);
+//					bot.path.remove();
+//				} else {
+//					dir = getMoveDir(dest);
+//					if(dir != null){
+//						rc.move(dir);
+//						bot.path.remove();
+//					}
+//				}
+//
+//			}
+//
+//			return bot.path;
+//		}
 		public Queue<MapLocation> move_to_location(BaseBot bot, MapLocation loc)
 				throws GameActionException {
 			Direction dir = facing;
@@ -1444,8 +1432,7 @@ public class RobotPlayer {
 		MapLocation current;
 		boolean complete = false;
 		int byte_code_limit = 300;
-		while (!frontier.isEmpty()
-				&& Clock.getBytecodesLeft() > byte_code_limit) {
+		while (!frontier.isEmpty() && Clock.getBytecodesLeft() > byte_code_limit) {
 			current = frontier.poll().x;
 
 			if (current.equals(finish)) {
